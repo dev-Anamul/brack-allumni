@@ -28,10 +28,11 @@ class APIFeatures {
     keywordSearch() {
         if (this.queryString.keyword) {
             this.query = this.query.find({
-                name: {
-                    $regex: this.queryString.keyword,
-                    $options: 'i',
-                },
+                $or: [
+                    { fullName: { $regex: this.queryString.keyword, $options: 'i' } },
+                    { email: { $regex: this.queryString.keyword, $options: 'i' } },
+                    { contactNumber: { $regex: this.queryString.keyword, $options: 'i' } },
+                ],
             });
         }
         return this;
@@ -63,7 +64,7 @@ class APIFeatures {
     pagination() {
         // ! pagination
         const page = this.queryString.page * 1 || 1;
-        const limit = this.queryString.limit * 1 || 2;
+        const limit = this.queryString.limit * 1 || 200;
         const skip = (page - 1) * limit;
 
         this.query = this.query.skip(skip).limit(limit);

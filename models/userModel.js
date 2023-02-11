@@ -1,45 +1,63 @@
+/* eslint-disable prefer-destructuring */
 const mongoose = require('mongoose');
-const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema(
     {
-        name: {
+        firstName: {
             type: String,
-            required: [true, 'A user must have a name'],
+            required: [true, 'User must have a first name'],
         },
 
+        lastName: {
+            type: String,
+            required: [true, 'User must have a last name'],
+        },
+        fullName: {
+            type: String,
+        },
+        username: {
+            type: String,
+            index: true,
+        },
         email: {
             type: String,
-            required: [true, 'A user must have an email'],
+            trim: true,
+            required: [true, 'User must have an email'],
             unique: true,
-            lowercase: true,
-            validate: [validator.isEmail, 'Please provide valid email'],
         },
         password: {
             type: String,
-            required: [true, 'A user must have a password'],
-            minlength: [8, 'password must be more than 8 character'],
+            trim: true,
+            required: [true, 'User must have a password'],
             select: false,
         },
         role: {
             type: String,
-            enum: ['admin', 'user', 'lead-guide', 'guide'],
+            enum: ['user', 'paidUser', 'admin'],
             default: 'user',
         },
-        confirmPassword: {
+        contactNumber: {
             type: String,
-            required: [true, 'Please provide confirm password'],
-            validate: {
-                validator(confirmpass) {
-                    return confirmpass === this.password;
-                },
-                message: 'Password are not same',
-            },
+            trim: true,
+            index: true,
+            required: [true, 'User must have a contact number'],
+        },
+        gender: {
+            type: String,
+            enum: ['male', 'female', 'other'],
+            required: [true, 'User must have a gender'],
+        },
+        isApproved: {
+            type: Boolean,
+            default: false,
         },
         photo: {
             type: String,
+        },
+        passwordChangeAT: {
+            type: Date,
         },
         passwordResetToken: String,
         passwordResetExpires: Date,
@@ -48,31 +66,49 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// ! set fullName and username before saving user to db
+userSchema.pre('save', function (next) {
+    this.fullName = `${this.firstName} ${this.lastName}`;
+    this.username = this.email.split('@')[0];
+    next();
+});
+
+// ! encrypt password before saving user to db
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) {
         return next();
     }
     this.password = await bcrypt.hash(this.password, 12);
-    this.confirmPassword = undefined;
     next();
 });
 
+// ! set pswword change at property if change password
+userSchema.pre('save', function (next) {
+    if (!this.isModified('password') || this.isNew) return next();
+    this.passwordChangeAT = Date.now() - 1000;
+    return next();
+});
+
+// ! compare password
 userSchema.methods.comparePassword = async (cadidatePassword, userPassword) => {
     const comparisonResult = await bcrypt.compare(cadidatePassword, userPassword);
-
     return comparisonResult;
 };
 
-userSchema.methods.passwordUpdatedAfter = function (jwtTimeStamp) {
-    const passTimeStamp = parseInt(this.updatedAt.getTime() / 1000, 10);
-    return jwtTimeStamp < passTimeStamp;
+// ! change password after issuing jwt token
+userSchema.methods.changePasswordAfterCreateJwt = function (jwtTimeStap) {
+    if (this.passwordChangeAT) {
+        const passChanged = parseInt(this.passwordChangeAT.getTime() / 1000, 10);
+        return passChanged > jwtTimeStap;
+    }
+    return false;
 };
 
+// ! create password reset token
 userSchema.methods.createPasswordResetToken = function () {
     const resetToken = crypto.randomBytes(32).toString('hex');
     this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
-
     return resetToken;
 };
 

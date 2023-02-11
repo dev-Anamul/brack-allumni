@@ -1,5 +1,5 @@
 const dotenv = require('dotenv');
-const mongoose = require('mongoose');
+const connecWithRetry = require('./config/dbconnection');
 
 // ! uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -15,12 +15,15 @@ dotenv.config({ path: './config/config.env' });
 const app = require('./app');
 
 // ! database connection
-const DB = process.env.DATABASE_LOCALE;
-mongoose
-    .connect(DB, {
-        useNewUrlParser: true,
+// ! connecto to the database
+connecWithRetry()
+    .then(() => {
+        console.log('DB connection successful!');
     })
-    .then(() => console.log('DB connected succesfulley'));
+    .catch((err) => {
+        console.log(err);
+        console.log('DB connection failed! Retrying...');
+    });
 
 // ! define port number
 const port = process.env.PORT || 5050;

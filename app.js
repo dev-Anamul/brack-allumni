@@ -3,10 +3,11 @@ const express = require('express');
 const morgan = require('morgan');
 const path = require('path');
 const cors = require('cors');
-const tourRouter = require('./routes/tourRouter');
+const swaggerUi = require('swagger-ui-express');
 const userRouter = require('./routes/userRouter');
 const AppError = require('./utils/AppError');
 const errorController = require('./controllers/errorController');
+const swaggerDocument = require('./swagger.json');
 
 // ! initialize app
 const app = express();
@@ -25,16 +26,19 @@ app.use(
 );
 // ! body parser
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ! serving static file
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ! mounted router
-app.use('/api/v1/tours', tourRouter);
 app.use('/api/v1/users', userRouter);
 
+// ! swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 // ! global unhalder route handler
-app.all('*', (req, res, next) => {
+app.all('*', (req, _res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on thi server.`, 404));
 });
 

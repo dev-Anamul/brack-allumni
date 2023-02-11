@@ -1,24 +1,36 @@
+/* eslint-disable comma-dangle */
 const express = require('express');
 const userController = require('../controllers/userController');
 const authController = require('../controllers/authController');
+const { uploadUserImage, resizeProfilePhoto } = require('../middlewares/imageUpload');
 
 // ! initialize router
 const router = express.Router();
 
 // ! auth routes
-router.post('/signup', authController.signUp);
+router.post('/signup', uploadUserImage, resizeProfilePhoto, authController.signUp);
 router.post('/login', authController.login);
-router.post('/forgotPassword', authController.forgotPassword);
-router.patch('/resetPassword/:token', authController.resetPassword);
-router.patch('/updateMyPassword', authController.protect, authController.updatePassword);
+router.post('/forgot-password', authController.forgotPassword);
+router.patch('/reset-password/:token', authController.resetPassword);
 
-// ! mounting controllers to route
-router.route('/').get(userController.getAllUsers).post(userController.createNewUser);
+// ! private access routes
+router.use(authController.protect, authController.isAccountApproved);
+router.patch('/update-my-password', authController.updatePassword);
+router.patch('/update-me', uploadUserImage, resizeProfilePhoto, authController.updateMe);
+router.delete('/delete-me', authController.deleteMe);
+router.get('/me', authController.getMe, userController.getSingleUser);
 
+// ! private access routes for admin
+router.use(authController.restrictTo('admin'));
+router.patch('/approve/:id', authController.approveUser);
+router
+    .route('/')
+    .get(userController.getAllUsers)
+    .post(uploadUserImage, resizeProfilePhoto, userController.createNewUser);
 router
     .route('/:id')
     .get(userController.getSingleUser)
-    .patch(userController.updateUser)
+    .patch(uploadUserImage, resizeProfilePhoto, userController.updateUser)
     .delete(userController.deleteUser);
 
 // ! export router
