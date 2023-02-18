@@ -1,0 +1,16 @@
+extends baseEmail
+
+block content
+    h2 Hi #{firstName},
+    p Congratulations! Your account has been approved and you can now access all the privileges that come with it. Keep up the good work!.
+    table.btn.btn-primary(role="presentation", border="0", cellpadding="0", cellspacing="0")
+        tbody
+            tr
+                td(align="left")
+                    table(role="presentation", border="0", cellpadding="0", cellspacing="0")
+                        tbody
+                            tr
+                                td
+                                    a(href=url, target="_blank") Login
+    p This is a really simple email template. Its sole purpose is to get the recipient to click the button with no distractions.
+    p Good luck!.

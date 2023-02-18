@@ -7,6 +7,7 @@ const APIFeatures = require('../utils/APIFeatures');
 
 // ! get all users
 exports.getAllUsers = catchAsync(async (req, res) => {
+    console.log(req.headers.origin);
     const totalUsers = await User.countDocuments();
 
     // ! build query

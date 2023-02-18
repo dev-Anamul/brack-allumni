@@ -542,7 +542,7 @@
       }
     },
     "/users/approve/{id}": {
-      "patch": {
+      "get": {
         "tags": ["Users"],
         "summary": "approve user",
         "description": "Anyone can access this route to approve user",

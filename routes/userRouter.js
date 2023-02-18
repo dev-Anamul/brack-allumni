@@ -22,7 +22,7 @@ router.get('/me', authController.getMe, userController.getSingleUser);
 
 // ! private access routes for admin
 router.use(authController.restrictTo('admin'));
-router.patch('/approve/:id', authController.approveUser);
+router.get('/approve/:id', authController.approveUser);
 router
     .route('/')
     .get(userController.getAllUsers)

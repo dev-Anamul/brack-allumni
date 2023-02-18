@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable comma-dangle */
 /* eslint-disable implicit-arrow-linebreak */
 /* eslint-disable operator-linebreak */
@@ -9,7 +10,8 @@ const crypto = require('crypto');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
-const sendEmailToUser = require('../utils/email');
+// const sendEmailToUser = require('../utils/email');
+const Email = require('../utils/EmailClass');
 const { createUserValidator, updatePassword } = require('../validators/userValidators');
 
 // ! generate json web token
@@ -38,7 +40,7 @@ const createTokenSendResponse = (user, statusCode, res) => {
 // ! @desc    signup user
 // ! @route   POST /api/v1/users/signup
 // ! @access  public
-exports.signUp = catchAsync(async (req, res) => {
+exports.signUp = catchAsync(async (req, res, next) => {
     const { errors, isValid } = createUserValidator(req.body);
 
     if (!isValid) {
@@ -57,7 +59,7 @@ exports.signUp = catchAsync(async (req, res) => {
         req.body.photo = 'female-avater.png';
     }
 
-    await User.create({
+    const user = await User.create({
         firstName: req.body.firstName,
         lastName: req.body.lastName,
         email: req.body.email,
@@ -68,11 +70,31 @@ exports.signUp = catchAsync(async (req, res) => {
         photo: req.body.photo,
     });
 
-    res.status(201).json({
-        status: 'success',
-        message:
-            'Your account has been created successfully. Please wait for admin approval to login your dashboard.',
-    });
+    // const message =
+    // ('Your account has been created successfully. Please wait for admin approval to login your dashboard.');
+    try {
+        // await sendEmailToUser({
+        //     email: user.email,
+        //     subject: 'Wellcome to BRAC Allumni Association as a new member',
+        //     text: message,
+        // });
+        const url = `${req.protocol}://${req.get('host')}/api/v1/users/login`;
+        await new Email(user, url).sendWelcome();
+        res.status(201).json({
+            status: 'success',
+            message:
+                'Your account has been created successfully. Please wait for admin approval to login your dashboard.',
+        });
+    } catch (error) {
+        console.log(error);
+        await User.findOneAndDelete({ email: req.body.email });
+        return next(
+            new AppError(
+                'Something wrong with your account creation. Please try after sometime',
+                500
+            )
+        );
+    }
 
     // createTokenSendResponse(newUser, 201, res);
 });
@@ -92,7 +114,7 @@ exports.login = catchAsync(async (req, res, next) => {
         return next(
             new AppError(
                 'Your account is not approved by admin!! Please wait for admin approval to login',
-                401
+                403
             )
         );
     }
@@ -102,14 +124,12 @@ exports.login = catchAsync(async (req, res, next) => {
 
 // ! protect routes
 exports.protect = catchAsync(async (req, _res, next) => {
-    console.log(req.headers.authorization);
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     }
-    console.log(!token);
+
     if (!token) {
-        console.log('You are not logged in. Please login');
         return next(new AppError('You are not logged in. Please login', 401));
     }
     const decode = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
@@ -152,16 +172,18 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
     const resetToken = user.createPasswordResetToken();
     await user.save({ validateBeforeSave: false });
     // send email to the user
-    const resetUrl = `${req.protocol}://${req.get(
-        'host'
-    )}/api/v1/users/reset-password/${resetToken}`;
-    const message = `Forgot your password..? Send a patch request with your new password and confirmPassword To: ${resetUrl}`;
+    // const resetUrl = `${req.protocol}://${req.get(
+    //     'host'
+    // )}/api/v1/users/reset-password/${resetToken}`;
+    const resetUrl = `${req.headers?.origin}/reset-password/${resetToken}`;
+    // const message = `Forgot your password..? Send a patch request with your new password and confirmPassword To: ${resetUrl}`;
     try {
-        await sendEmailToUser({
-            email: user.email,
-            subject: 'Your reset token is valid only for 10 minutes',
-            text: message,
-        });
+        // await sendEmailToUser({
+        //     email: user.email,
+        //     subject: 'Your reset token is valid only for 10 minutes',
+        //     text: message,
+        // });
+        await new Email(user, resetUrl).sendPasswordReset();
         res.status(200).json({
             status: 'success',
             message: 'Send email to the user successfully',
@@ -189,7 +211,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
         return next(
             new AppError(
                 'Your account is not approved yet!! Please wait for admin approval to perform this action.',
-                401
+                403
             )
         );
     }
@@ -290,22 +312,32 @@ exports.deleteMe = catchAsync(async (req, res) => {
 // ! @route   POST /api/v1/users/approve
 // ! @access  Private
 exports.approveUser = catchAsync(async (req, res, next) => {
-    const user = await User.findByIdAndUpdate(
-        req.params.id,
-        {
-            isApproved: true,
-        },
-        {
-            new: true,
-            runValidators: true,
-        }
-    );
-    // if user not found
+    const user = await User.findById(req.params.id);
+
     if (!user) {
-        return next(new AppError('No user found with this id', 404));
+        return next(new AppError('No user found with this ID.', 404));
     }
-    // if everything is okay
-    return res.status(200).json({ success: true, data: user });
+
+    user.isApproved = true;
+    await user.save();
+    // ! send mail to the user
+    // const message = 'Your accoutn is now approved by an admin. Please try to login your dashboard';
+    try {
+        // await sendEmailToUser({
+        //     email: user.email,
+        //     subject: 'Welcome to BRAC Allumni Association',
+        //     text: message,
+        // });
+        const loginUrl = `${req.headers.origin}/login`;
+        await new Email(user, loginUrl).sendApproval();
+        res.status(200).json({ success: true, data: user });
+    } catch (error) {
+        user.isApproved = false;
+        await user.save();
+        return next(
+            new AppError('Something went wrong with user approve. Please try after sometime', 500)
+        );
+    }
 });
 
 // ! @desc    is account approved
@@ -318,7 +350,7 @@ exports.isAccountApproved = catchAsync(async (req, _res, next) => {
         return next(
             new AppError(
                 'Your account is not approved yet!! Please wait for admin approval to perform this action.',
-                401
+                403
             )
         );
     }

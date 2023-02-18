@@ -28,6 +28,10 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ! set view engine
+app.set('view engine', 'pug');
+app.set('views', path.join(__dirname, 'view'));
+
 // ! serving static file
 app.use(express.static(path.join(__dirname, 'public')));
 
